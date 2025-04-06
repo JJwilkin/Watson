@@ -1,0 +1,75 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String         @id @default(uuid())
+  username  String         @unique
+  password  String
+  email     String         @unique
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  accounts  PlaidAccount[]
+}
+
+model PlaidAccount {
+  id                   String        @id @default(uuid())
+  userId               String
+  accessToken          String
+  itemId               String        @unique
+  institutionId        String?
+  accountName          String?
+  accountType          String?
+  firstTransactionDate DateTime? // Track earliest transaction
+  lastTransactionDate  DateTime? // Track latest transaction
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  user                 User          @relation(fields: [userId], references: [id])
+  transactions         Transaction[]
+}
+
+model Transaction {
+  id             String   @id @default(uuid())
+  plaidAccountId String
+  transactionId  String   @unique
+  amount         Float
+  date           String
+  name           String
+  merchantName   String?
+  pending        Boolean  @default(false)
+  categories     String[] // Original Plaid categories
+
+  // New fields for processing status and results
+  isProcessed    Boolean   @default(false)
+  processedAt    DateTime?
+  customCategory String? // The LLM-classified category
+  confidence     Float? // Optional: confidence score from LLM
+
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  account           PlaidAccount     @relation(fields: [plaidAccountId], references: [id])
+  ProcessingBatch   ProcessingBatch? @relation(fields: [processingBatchId], references: [id])
+  processingBatchId String?
+}
+
+// Optional: Track processing batches
+model ProcessingBatch {
+  id           String        @id @default(uuid())
+  processedAt  DateTime      @default(now())
+  prompt       String // Store the prompt used for this batch
+  response     String // Store the LLM response
+  status       String // SUCCESS, FAILED, etc.
+  transactions Transaction[]
+}
